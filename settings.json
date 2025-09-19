@@ -1,0 +1,11 @@
+{
+	"openhabbasepath" : "http://10.0.0.215:8123/api/",
+	"openhabtoken" : "",
+	"processes" : [
+		{
+			"processname" : "Zoom",
+			"openhabitem" : "light.office_light_two",
+			"nocallprocesscount" : 4
+		}
+	]
+}

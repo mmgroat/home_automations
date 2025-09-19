@@ -6,32 +6,83 @@ $headers.Add("Authorization", "Bearer " + $SettingsObject.openhabtoken)
 $headers.Add("Content-Type", "application/json")
 $is_toggled = $false
 $global:entity_last_states = New-Object "System.Collections.Generic.Dictionary[[String],[Object]]"
-#in case the program starts with the lights turned to red, then default to this color and brightness - we don't usually have them red anyways
 $default_color = "[255, 235, 218]"
-$default_brightness = "51" 
+$default_brightness = "51" # 20 percent of 255
+$red_color = "[255, 0, 0]"
+$full_brightness = "255"
 
-function Update-OpenHAB {
-	param([string]$item, [bool]$state)
+function Update-Entities {
+	param([string[]]$entities, [bool]$state)
 
 	if ($state -eq $True) {
-		toggle_on("light.mike_s_light")
-		toggle_on("light.living_room_light_four")
+		Foreach ($entity in $entities) {
+			toggle_on($entity)
+		}
 		$global:is_toggled = $true
-	}
-	else
-	{
-		toggle_off("light.mike_s_light")
-		toggle_off("light.living_room_light_four")
+	} else {
+		Foreach($entity in $entities) {
+			toggle_off($entity)
+		}
 		$global:is_toggled = $false
 	}
+}
+
+function get_entity_state {
+	param([string]$entity)
+	
+	$geturl = $SettingsObject.openhabbasepath + "states/$entity"
+	$output = Invoke-RestMethod $geturl -Method 'GET' -Headers $headers	
+	return $output
+}
+
+function set_light_color {
+	param([string]$entity, [string]$color)
+	
+	$body = "{ `"entity_id`": `"$entity`", `"rgb_color`": $color }"
+	Start-Sleep -Milliseconds 1000
+	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
+}
+
+function set_light_brightness {
+	param([string]$entity, [string]$brightness)
+	
+	$body = "{ `"entity_id`": `"$entity`", `"brightness`": $brightness }"
+	Start-Sleep -Milliseconds 1000
+	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
+}
+
+function turn_off_light {
+	param([string]$entity)
+	
+	$body = "{ `"entity_id`": `"$entity`" }"
+	Start-Sleep -Milliseconds 1000
+	Invoke-RestMethod $offurl -Method 'POST' -Headers $headers -Body $body
 }
 
 function toggle_on {
 	param([string]$entity)
 	
 	set_entity_last_states($entity)
-	turn_red($entity)
-	set_full_brightness($entity)
+	set_light_color $entity  $red_color 
+	set_light_brightness $entity $full_brightness
+}
+
+function toggle_off {
+	param([string]$entity)
+
+	$output = get_entity_state($entity)
+	if (is_red($output)) {
+		$entity_last_color = $global:entity_last_states[$entity]["color"]
+		$entity_last_brightness = $global:entity_last_states[$entity]["brightness"]
+		if($entity_last_color -eq $null -or $entity_last_brightness -eq $null){
+			turn_off_light($entity)
+		} else {
+			$entity_last_color
+			$entity_last_brightness
+			set_light_color $entity $entity_last_color
+			set_light_brightness $entity $entity_last_brightness
+		}
+	}
 }
 
 function set_entity_last_states {
@@ -40,13 +91,11 @@ function set_entity_last_states {
 	if (! $global:is_toggled) {
 		$output = get_entity_state($entity)
 		if (is_red($output)){
-			# app was started with light bulbs red - set last state to default color
-			"app was started with light bulbs red - set to default color"
+			# the app was started with light bulb red - set last state to default color
 			$global:entity_last_states[$entity]["color"] = $default_color
 			$gloabl:entity_last_states[$entity]["brightness"] = $default_brightness
 		} elseif ($output -eq $null -or $output.attributes.rgb_color -eq $null -or $output.attributes.brightness -eq $null) {
-			# light bulb is turned off
-			"Light bulbs were turned off"
+			# when video was turned on, light bulb is turned off
 			$global:entity_last_states[$entity]["color"] = $null
 			$global:entity_last_states[$entity]["brightness"] = $null
 		} else {
@@ -55,50 +104,7 @@ function set_entity_last_states {
 			$green = $output.attributes.rgb_color[1]
 			$blue = $output.attributes.rgb_color[2]
 			$global:entity_last_states[$entity]["color"] = "[$red, $green, $blue]"
-			$global:entity_last_states[$entity]["brightness"] = $output.attributes.brightness
-		}
-	}
-}
-
-function turn_red {
-	param([string]$entity)
-	
-	$body = "{ `"entity_id`": `"$entity`", `"rgb_color`": [255, 0, 0] }"
-	Start-Sleep -Milliseconds 1000
-	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
-}
-
-function set_full_brightness {
-	param([string]$entity)
-	
-	$body = "{ `"entity_id`": `"$entity`", `"brightness_pct`": 100 }"
-	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
-}
-
-function toggle_off {
-	param([string]$entity)
-	
-	$output = get_entity_state($entity)
-	if (is_red($output)) {
-		"in toggle off is red"
-		$entity_last_color = $global:entity_last_states[$entity]["color"]
-		$entity_last_brightness = $global:entity_last_states[$entity]["brightness"]
-		if($entity_last_color -eq $null -or $entity_last_brightness -eq $null){
-			"Turning off entity"
-			$body = "{ `"entity_id`": `"$entity`" }"
-			Start-Sleep -Milliseconds 1000
-			Invoke-RestMethod $offurl -Method 'POST' -Headers $headers -Body $body
-		}
-		else
-		{
-			$body1 = "{ `"entity_id`": `"$entity`", `"rgb_color`": $entity_last_color }"
-			$body1
-			Start-Sleep -Milliseconds 1000
-			Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body1
-			$body2 = "{ `"entity_id`": `"$entity`", `"brightness`": $entity_last_brightness }"
-			$body2
-			Start-Sleep -Milliseconds 1000
-			Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body2
+			$global:entity_last_states[$entity]["brightness"] = $output.attributes.brightness.ToString()
 		}
 	}
 }
@@ -110,17 +116,8 @@ function is_red {
 		($output.attributes.rgb_color[0] -ge 224 -and $output.attributes.rgb_color[1] -eq 0 -and $output.attributes.rgb_color[2] -eq 0 ))
 }
 
-function get_entity_state {
-	param([string]$entity)
-	
-	$geturl = $SettingsObject.openhabbasepath + "states/$entity"
-	$output = Invoke-RestMethod $geturl -Method 'GET' -Headers $headers
-	
-	return $output
-}
-
 function Check-Process {
-	param([string]$processname, [string]$openhabitem, [int]$offcallcount = 0)
+	param([string]$processname, [string[]]$entities, [int]$offcallcount = 0)
 	
 	$process = Get-Process $processname -EA 0
 
@@ -128,28 +125,30 @@ function Check-Process {
 		$processCount = (Get-NetUDPEndpoint -OwningProcess ($process).Id -EA 0|Measure-Object).count
 		
 		if ($processCount -gt 5) {
-			Update-OpenHAB -item $openhabitem -state $True
+			Update-Entities -entities $entities -state $True
 		}
 		else {    
-			Update-OpenHAB -item $openhabitem -state $False
+			Update-Entities -entities $entities -state $False
 		}
 	}
 	else {		
-		Update-OpenHAB -item $openhabitem -state $False
+		Update-Entities -entities $entities -state $False
 	}
 	Remove-Variable process
 }
 
-$global:mike_s_light = @{ "color" = $default_color; "brightness" = $default_brightness }
-$global:living_room_light_four = @{ "color" = $default_color; "brightness" = $default_brightness }
-$global:entity_last_states.Add("light.mike_s_light",$mike_s_light)
-$global:entity_last_states.Add("light.living_room_light_four",$living_room_light_four)
+# intialize the entity_last_states values to default values
+Foreach ($process in $SettingsObject.processes) {
+	Foreach ($item in $SettingsObject.processes.entities) {
+		$global:entity_last_states.Add($item,@{ "color" = $default_color; "brightness" = $default_brightness })
+	}
+}
 
+# loop forever checking process's states
 While($True) {
 
 	Foreach ($process in $SettingsObject.processes) {
-		"Waking up - checking lights"
-		Check-Process -processname $process.processname -openhabitem $process.openhabitem -offcallcount $process.nocallprocesscount
+		Check-Process -processname $process.processname -entities $process.entities -offcallcount $process.nocallprocesscount
 	}
 	
 	Start-Sleep -Seconds 30

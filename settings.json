@@ -4,8 +4,11 @@
 	"processes" : [
 		{
 			"processname" : "Zoom",
-			"openhabitem" : "light.office_light_two",
-			"nocallprocesscount" : 4
+			"nocallprocesscount" : 4,
+			"entities" : [
+				"light.mike_s_light",
+				"light.living_room_light_four"
+			]
 		}
 	]
 }

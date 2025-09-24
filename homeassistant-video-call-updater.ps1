@@ -5,7 +5,7 @@ $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
 $headers.Add("Authorization", "Bearer " + $SettingsObject.openhabtoken)
 $headers.Add("Content-Type", "application/json")
 $is_toggled = $false
-$global:entity_last_states = New-Object "System.Collections.Generic.Dictionary[[String],[Object]]"
+$entity_last_states = New-Object "System.Collections.Generic.Dictionary[[String],[Object]]"
 $default_color = "[255, 235, 218]"
 $default_brightness = "51" # 20 percent of 255
 $red_color = "[255, 0, 0]"
@@ -72,15 +72,13 @@ function toggle_off {
 
 	$output = get_entity_state($entity)
 	if (is_red($output)) {
-		$entity_last_color = $global:entity_last_states[$entity]["color"]
-		$entity_last_brightness = $global:entity_last_states[$entity]["brightness"]
-		if($entity_last_color -eq $null -or $entity_last_brightness -eq $null){
+		$last_color = $global:entity_last_states[$entity]["color"]
+		$last_brightness = $global:entity_last_states[$entity]["brightness"]
+		if($last_color -eq $null -or $last_brightness -eq $null){
 			turn_off_light($entity)
 		} else {
-			$entity_last_color
-			$entity_last_brightness
-			set_light_color $entity $entity_last_color
-			set_light_brightness $entity $entity_last_brightness
+			set_light_color $entity $last_color
+			set_light_brightness $entity $last_brightness
 		}
 	}
 }
@@ -95,11 +93,11 @@ function set_entity_last_states {
 			$global:entity_last_states[$entity]["color"] = $default_color
 			$gloabl:entity_last_states[$entity]["brightness"] = $default_brightness
 		} elseif ($output -eq $null -or $output.attributes.rgb_color -eq $null -or $output.attributes.brightness -eq $null) {
-			# when video was turned on, light bulb is turned off
+			# when video was turned on, light bulb was turned off
 			$global:entity_last_states[$entity]["color"] = $null
 			$global:entity_last_states[$entity]["brightness"] = $null
 		} else {
-			#light bulb is not red - store previous state
+			#light bulb is not red nor turned off - store previous state
 			$red = $output.attributes.rgb_color[0]
 			$green = $output.attributes.rgb_color[1]
 			$blue = $output.attributes.rgb_color[2]
@@ -140,7 +138,7 @@ function Check-Process {
 # intialize the entity_last_states values to default values
 Foreach ($process in $SettingsObject.processes) {
 	Foreach ($item in $SettingsObject.processes.entities) {
-		$global:entity_last_states.Add($item,@{ "color" = $default_color; "brightness" = $default_brightness })
+		$entity_last_states.Add($item, @{ "color" = $default_color; "brightness" = $default_brightness })
 	}
 }
 

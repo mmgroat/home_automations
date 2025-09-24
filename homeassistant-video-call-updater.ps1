@@ -91,7 +91,7 @@ function set_entity_last_states {
 		if (is_red($output)){
 			# the app was started with light bulb red - set last state to default color
 			$global:entity_last_states[$entity]["color"] = $default_color
-			$gloabl:entity_last_states[$entity]["brightness"] = $default_brightness
+			$global:entity_last_states[$entity]["brightness"] = $default_brightness
 		} elseif ($output -eq $null -or $output.attributes.rgb_color -eq $null -or $output.attributes.brightness -eq $null) {
 			# when video was turned on, light bulb was turned off
 			$global:entity_last_states[$entity]["color"] = $null

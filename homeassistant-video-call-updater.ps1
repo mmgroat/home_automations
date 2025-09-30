@@ -72,8 +72,8 @@ function toggle_off {
 
 	$output = get_entity_state($entity)
 	if (is_red($output)) {
-		$last_color = $global:entity_last_states[$entity]["color"]
-		$last_brightness = $global:entity_last_states[$entity]["brightness"]
+		$last_color = $entity_last_states[$entity]["color"]
+		$last_brightness = $entity_last_states[$entity]["brightness"]
 		if($last_color -eq $null -or $last_brightness -eq $null){
 			turn_off_light($entity)
 		} else {

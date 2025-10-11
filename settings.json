@@ -1,14 +1,22 @@
 {
-	"openhabbasepath" : "http://10.0.0.215:8123/api/",
-	"openhabtoken" : "",
+	"ha_basepath" : "http://10.0.0.215:8123/api/",
+	"light_on_api" : "services/light/turn_on",
+	"light_off_api" : "services/light/turn_off",
+	"ha_token" : "***",
 	"processes" : [
 		{
 			"processname" : "Zoom",
-			"nocallprocesscount" : 4,
-			"entities" : [
-				"light.mike_s_light",
-				"light.living_room_light_four"
-			]
+			"nocallprocesscount" : 5
 		}
-	]
+	],
+	"entities" : [
+		"light.mike_s_light",
+		"light.living_room_light_four"
+	],
+	"alert_color" : {"r" : 255, "g" : 25, "b" : 255 },
+	"alert_brightness" : "255",
+	"default_color" : {"r" : 255, "g" : 235, "b" : 218},
+	"default_brightness" : "51",
+	"alert_color_error_range" : 18,
+	"rest_API_delay_ms" : 1000
 }

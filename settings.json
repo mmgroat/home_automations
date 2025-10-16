@@ -1,19 +1,19 @@
 {
-  "ha_basepath": "http://<your_ipaddress>:<your_port>/api/",
+  "ha_basepath": "http://<your_ip>:<your_port>/api/",
   "light_on_api": "services/light/turn_on",
   "light_off_api": "services/light/turn_off",
-  "ha_token": "<your_homeassistant_token",
+  "ha_token": "<your_long_lived_access_token>",
   "processes": [
     {
       "processname": "Zoom",
       "nocallprocesscount": 5
     }
   ],
-  "entities": ["light.mike_s_light", "light.living_room_light_four", <your_light_entities>],
-  "alert_color": { "r": 255, "g": 25, "b": 255 },
-  "alert_brightness": "255",
+  "entities": ["light.mike_s_light", "light.living_room_light_four", <your_entity_ids>],
+  "alert_color": [255, 25, 255],
+  "alert_brightness": 255,
   "default_temperature": 4000,
-  "default_brightness": "51",
-  "alert_color_error_range": 25,
+  "default_brightness": 51,
+  "alert_color_error_range": 40,
   "rest_API_delay_ms": 1000
 }

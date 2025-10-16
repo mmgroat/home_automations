@@ -81,13 +81,19 @@ function Write-Entity-State {
 }
 
 function Set-Light-Color-By-RGB {
-	param([string]$entity, [string]$color)	
+	param([string]$entity, [int[]]$color)	
 
 	"Setting color by RGB of $entity to $color"
-	$body = "{ `"entity_id`": `"$entity`", `"rgb_color`": $color }"
-	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
-	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
-	Remove-Variable body
+	if ($color.Length -ne 3) {
+		[Console]::WriteLine("Error: Color array must have exactly 3 elements (R, G, B). Given: $color")	
+	} else {
+		$color_string = "[$($color[0]), $($color[1]), $($color[2])]"
+		$body = "{ `"entity_id`": `"$entity`", `"rgb_color`": $color_string }"
+		Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
+		Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
+		Remove-Variable body
+		Remove-Variable color_string
+	}
 }
 
 function Set-Light-Color-By-Temp {
@@ -127,17 +133,17 @@ function Is-Alert-Color {
 		$null -ne $output.attributes -and $output.attributes.color_mode -eq 'rgb' -and
 		$null -ne $output.attributes.rgb_color -and 
 		# Check if the color is within the error range of the alert color. Sometimes it is off by a few values.
-		($output.attributes.rgb_color[0] -le $SettingsObject.alert_color.r + 
+		($output.attributes.rgb_color[0] -le $SettingsObject.alert_color[0] + 
 		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[0] -ge $SettingsObject.alert_color.r - 
+		($output.attributes.rgb_color[0] -ge $SettingsObject.alert_color[0] - 
 		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[1] -le $SettingsObject.alert_color.g + 
+		($output.attributes.rgb_color[1] -le $SettingsObject.alert_color[1] + 
 		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[1] -ge $SettingsObject.alert_color.g - 
+		($output.attributes.rgb_color[1] -ge $SettingsObject.alert_color[1] - 
 		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[2] -le $SettingsObject.alert_color.b + 
+		($output.attributes.rgb_color[2] -le $SettingsObject.alert_color[2] + 
 		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[2] -ge $SettingsObject.alert_color.b - 
+		($output.attributes.rgb_color[2] -ge $SettingsObject.alert_color[2] - 
 		$SettingsObject.alert_color_error_range))
 }
 
@@ -171,7 +177,7 @@ function Toggle-On {
 	}
 	# Always set the light to the alert color and alert brightness while in a call. Sometimes, someone changes the light
 	# color while in a call. 
-	Set-Light-Color-By-RGB $entity $alert_color_string
+	Set-Light-Color-By-RGB $entity $SettingsObject.alert_color
 	Set-Light-Brightness $entity $SettingsObject.alert_brightness
 }
 
@@ -186,18 +192,13 @@ function Toggle-Off {
 		# Restore the last state of the entity. If the last state was off (null), turn the light off. If the last state 
 		# was the alert color, set it to the default color (but this is stored in the the entity_last_states variable, 
 		# so always use the last state unless turning off the light).
-		if ($null -eq $entity_last_states[$entity] -or 
-			$null -eq $entity_last_states[$entity].state -or
+		if ($null -eq $entity_last_states[$entity] -or $null -eq $entity_last_states[$entity].state -or
 			$entity_last_states[$entity].state -eq 'off' ) {
 			Turn-Off-Light $entity
 		} else {
 			Set-Light-Brightness $entity $entity_last_states[$entity].attributes.brightness
 			if ($entity_last_states[$entity].attributes.color_mode -eq 'rgb') {
-				$color_string = "[$($entity_last_states[$entity].attributes.rgb_color[0]), " +
-					"$($entity_last_states[$entity].attributes.rgb_color[1]), " +
-					"$($entity_last_states[$entity].attributes.rgb_color[2])]"
-				Set-Light-Color-By-RGB $entity $color_string
-				Remove-Variable color_string
+				Set-Light-Color-By-RGB $entity $entity_last_states[$entity].attributes.rgb_color
 			} else {
 				Set-Light-Color-By-Temp $entity $entity_last_states[$entity].attributes.color_temp_kelvin
 			}
@@ -237,10 +238,6 @@ function Check-Process {
 	}
 	Remove-Variable process_var
 }
-
-# create the color strings for use in the REST calls
-$alert_color_string = '[' + $SettingsObject.alert_color.r.ToString() + ', ' + $SettingsObject.alert_color.g.ToString()
-$alert_color_string += ', ' + $SettingsObject.alert_color.b.ToString() + ']'
 
 # intialize the entity_last_states values to default values
 foreach ($entity in $SettingsObject.entities) {

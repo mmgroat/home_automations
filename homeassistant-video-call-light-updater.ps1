@@ -1,7 +1,9 @@
+########################################################################################################################
 # Program Name: homeassistant-video-call-updater.ps1
 # Version 1.3 - Updated 2025-10-11
 # Author: Michael Groat
 # GitHub: https://github.com/mmgroat/home_automations/blob/main/homeassistant-video-call-updater.ps1
+#
 # Description: This script updates the color and brightness of smart lights based on video call status.
 # It is designed to work with Home Assistant and smart lights that support color changes via the Home Assistant REST
 # API. This script monitors for video call applications (like Zoom) running on the local machine. When a video call 
@@ -11,13 +13,17 @@
 # Configuration settings are read from a JSON file. The script runs in an infinite loop, checking the state of the 
 # specified processes every 30 seconds. Note: Ensure that the settings.json file contains the correct Home Assistant 
 # base path, token, process names, entity IDs, and color/brightness settings.
-
+#
 # Usually, it is best to run this script as a scheduled task at logon with highest privileges. I find it's best to use
 # lightbulbs that are located outside of the office to let others know you are in a call. Make sure the lights you use 
 # are not used for other purposes, as this script will change their color and brightness when a call is detected. If
 # the light is already on a different color when a call starts, it will change to the alert color and brightness, and 
 # then revert back to the previous color and brightness when the call ends. If the light is in the alert color when
 # the script starts, or not in a call, it will set the ligth to a default color and brightness.
+#
+# Modifications:
+# 2025-10-15 MMG Added color temperature color mode ability
+########################################################################################################################
 
 # Load settings from JSON file
 $settings_file = 'C:\Users\MikeGroat\OneDrive - Forge Global, Inc\Desktop\Personel\Mike_Groat\bin\settings.json'
@@ -43,7 +49,13 @@ function Get-Entity-State {
 	# Get the current state of the entity
 	$geturl = $geturlbase + $entity
 	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
-	$output = Invoke-RestMethod $geturl -Method 'GET' -Headers $headers
+	try {
+		$output = Invoke-RestMethod $geturl -Method 'GET' -Headers $headers
+	} catch [System.Net.WebException] {
+		[Console]::WriteLine("An exception occurred connecting to Home Assistant for entity $($entity): " + 
+			"$($_.Exception.Message)")
+	}
+	Remove-Variable geturl
 	Write-Entity-State -entity $entity -output $output
 	return $output
 }
@@ -51,22 +63,38 @@ function Get-Entity-State {
 function Write-Entity-State {
 	param([string]$entity, [Object]$output)
 
-	if ($null -eq $output -or $null -eq $output.attributes) {
+	if ($null -eq $output -or $null -eq $output.attributes -or $null -eq $output.state) {
 		[Console]::WriteLine("Could not retrieve state for $($entity)")
-	} elseif ($null -eq $output.attributes.rgb_color -or $null -eq $output.attributes.brightness) {
+	} elseif ($output.state -eq 'off') {
 		[Console]::WriteLine("Got state for $($entity): Light bulb is off")
 	} else {
-		[Console]::WriteLine("Got state for $($entity): color: $($output.attributes.rgb_color) and brightness: " + 
-			"$($output.attributes.brightness)")
+		if ($output.attributes.color_mode -eq 'rgb') {
+			[Console]::WriteLine("Got state for $($entity): color mode: $($output.attributes.color_mode), " +
+				"rgb_color: $($output.attributes.rgb_color), brightness: $($output.attributes.brightness)")
+		} else {
+			[Console]::WriteLine("Got state for $($entity): color mode: $($output.attributes.color_mode), " +
+				"color_temp_kelvin: $($output.attributes.color_temp_kelvin), brightness: " +
+				"$($output.attributes.brightness)")
+		}
 	}
 	[Console]::Out.Flush()
 }
 
-function Set-Light-Color {
+function Set-Light-Color-By-RGB {
 	param([string]$entity, [string]$color)	
 
-	"Setting color of $entity to $color"
+	"Setting color by RGB of $entity to $color"
 	$body = "{ `"entity_id`": `"$entity`", `"rgb_color`": $color }"
+	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
+	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
+	Remove-Variable body
+}
+
+function Set-Light-Color-By-Temp {
+	param([string]$entity, [int]$temperature)	
+
+	"Setting color by temperature of $entity to $temperature"
+	$body = "{ `"entity_id`": `"$entity`", `"color_temp_kelvin`": $($temperature.ToString()) }"
 	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
 	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
 	Remove-Variable body
@@ -95,7 +123,9 @@ function Turn-Off-Light {
 function Is-Alert-Color {
 	param([Object]$output)	
 
-	return ($null -ne $output -and $null -ne $output.attributes.rgb_color -and 
+	return ($null -ne $output -and $null -ne $output.state -and $output.state -eq 'on' -and 
+		$null -ne $output.attributes -and $output.attributes.color_mode -eq 'rgb' -and
+		$null -ne $output.attributes.rgb_color -and 
 		# Check if the color is within the error range of the alert color. Sometimes it is off by a few values.
 		($output.attributes.rgb_color[0] -le $SettingsObject.alert_color.r + 
 		$SettingsObject.alert_color_error_range) -and 
@@ -114,28 +144,20 @@ function Is-Alert-Color {
 function Set-Entity-Last-State {
 	param([string]$entity)
 
-	$output = Get-Entity-State($entity)
-	if (Is-Alert-Color($output)) {
+	$global:entity_last_states[$entity] = Get-Entity-State($entity)
+	if (Is-Alert-Color($global:entity_last_states[$entity])) {
 		# The light is in the alert color. Set the last state to the default color.
-		"Setting last state for $entity to default color and brightness"
-		$global:entity_last_states[$entity]['color'] = $default_color_string
-		$global:entity_last_states[$entity]['brightness'] = $SettingsObject.default_brightness
-	} elseif ($null -eq $output -or $null -eq $output.attributes.rgb_color -or 
-		$null -eq $output.attributes.brightness) {
-		# The light bulb is turned off. Store the last sate as off (null values).
-		"Setting last state for $entity to off (null values)"
-		$global:entity_last_states[$entity]['color'] = $null
-		$global:entity_last_states[$entity]['brightness'] = $null
-	} else {
-		# The light bulb is not in the alert color, nor turned off. Store color and brightness in last_entity_states.
-		"Setting last state for $entity to color: $($output.attributes.rgb_color) and brightness: " + 
-		"$($output.attributes.brightness)"
-		$global:entity_last_states[$entity]['color'] = "[$($output.attributes.rgb_color[0]), "
-		$global:entity_last_states[$entity]['color'] += "$($output.attributes.rgb_color[1]), "
-		$global:entity_last_states[$entity]['color'] += "$($output.attributes.rgb_color[2])]"
-		$global:entity_last_states[$entity]['brightness'] = $output.attributes.brightness.ToString()
+		Set-Entity-To-Default $entity
 	}
-	Remove-Variable output
+}
+
+function Set-Entity-To-Default {
+	param([string]$entity)
+
+	"Setting last state for $entity to default temperture and brightness"
+	$global:entity_last_states[$entity].attributes.color_temp_kelvin = $SettingsObject.default_temperature
+	$global:entity_last_states[$entity].attributes.brightness = $SettingsObject.default_brightness
+	$global:entity_last_states[$entity].attributes.color_mode = 'color_temp'
 }
 
 function Toggle-On {
@@ -149,7 +171,7 @@ function Toggle-On {
 	}
 	# Always set the light to the alert color and alert brightness while in a call. Sometimes, someone changes the light
 	# color while in a call. 
-	Set-Light-Color $entity $alert_color_string
+	Set-Light-Color-By-RGB $entity $alert_color_string
 	Set-Light-Brightness $entity $SettingsObject.alert_brightness
 }
 
@@ -164,16 +186,22 @@ function Toggle-Off {
 		# Restore the last state of the entity. If the last state was off (null), turn the light off. If the last state 
 		# was the alert color, set it to the default color (but this is stored in the the entity_last_states variable, 
 		# so always use the last state unless turning off the light).
-		$last_color = $entity_last_states[$entity]['color']
-		$last_brightness = $entity_last_states[$entity]['brightness']
-		if ($null -eq $last_color -or $null -eq $last_brightness) {
-			Turn-Off-Light($entity)
+		if ($null -eq $entity_last_states[$entity] -or 
+			$null -eq $entity_last_states[$entity].state -or
+			$entity_last_states[$entity].state -eq 'off' ) {
+			Turn-Off-Light $entity
 		} else {
-			Set-Light-Color $entity $last_color
-			Set-Light-Brightness $entity $last_brightness
+			Set-Light-Brightness $entity $entity_last_states[$entity].attributes.brightness
+			if ($entity_last_states[$entity].attributes.color_mode -eq 'rgb') {
+				$color_string = "[$($entity_last_states[$entity].attributes.rgb_color[0]), " +
+					"$($entity_last_states[$entity].attributes.rgb_color[1]), " +
+					"$($entity_last_states[$entity].attributes.rgb_color[2])]"
+				Set-Light-Color-By-RGB $entity $color_string
+				Remove-Variable color_string
+			} else {
+				Set-Light-Color-By-Temp $entity $entity_last_states[$entity].attributes.color_temp_kelvin
+			}
 		}
-		Remove-Variable last_color
-		Remove-Variable last_brightness
 	}
 }
 
@@ -213,20 +241,13 @@ function Check-Process {
 # create the color strings for use in the REST calls
 $alert_color_string = '[' + $SettingsObject.alert_color.r.ToString() + ', ' + $SettingsObject.alert_color.g.ToString()
 $alert_color_string += ', ' + $SettingsObject.alert_color.b.ToString() + ']'
-$default_color_string = '[' + $SettingsObject.default_color.r.ToString() + ', ' 
-$default_color_string += $SettingsObject.default_color.g.ToString()
-$default_color_string += ', ' + $SettingsObject.default_color.b.ToString() + ']'
-
-$alert_color_string
-$default_color_string
 
 # intialize the entity_last_states values to default values
-foreach ($process in $SettingsObject.processes) {
-	foreach ($item in $SettingsObject.entities) {
-		"Initializing last state for $item"
-		$global:entity_last_states.Add($item, 
-			@{ 'color' = $default_color_string; 'brightness' = $SettingsObject.default_brightness })
-	}
+foreach ($entity in $SettingsObject.entities) {
+	"Initializing last state for $entity"
+	$output = Get-Entity-State($entity)
+	$global:entity_last_states.Add($entity, $output)
+	Set-Entity-To-Default $entity
 }
 
 # loop forever checking processes's states

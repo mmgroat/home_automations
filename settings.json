@@ -1,22 +1,19 @@
 {
-	"ha_basepath" : "http://10.0.0.215:8123/api/",
-	"light_on_api" : "services/light/turn_on",
-	"light_off_api" : "services/light/turn_off",
-	"ha_token" : "***",
-	"processes" : [
-		{
-			"processname" : "Zoom",
-			"nocallprocesscount" : 5
-		}
-	],
-	"entities" : [
-		"light.mike_s_light",
-		"light.living_room_light_four"
-	],
-	"alert_color" : {"r" : 255, "g" : 25, "b" : 255 },
-	"alert_brightness" : "255",
-	"default_color" : {"r" : 255, "g" : 235, "b" : 218},
-	"default_brightness" : "51",
-	"alert_color_error_range" : 18,
-	"rest_API_delay_ms" : 1000
+  "ha_basepath": "http://<your_ipaddress>:<your_port>/api/",
+  "light_on_api": "services/light/turn_on",
+  "light_off_api": "services/light/turn_off",
+  "ha_token": "<your_homeassistant_token",
+  "processes": [
+    {
+      "processname": "Zoom",
+      "nocallprocesscount": 5
+    }
+  ],
+  "entities": ["light.mike_s_light", "light.living_room_light_four", <your_light_entities>],
+  "alert_color": { "r": 255, "g": 25, "b": 255 },
+  "alert_brightness": "255",
+  "default_temperature": 4000,
+  "default_brightness": "51",
+  "alert_color_error_range": 25,
+  "rest_API_delay_ms": 1000
 }

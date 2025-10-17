@@ -43,11 +43,16 @@ $headers.Add('Content-Type', 'application/json')
 $global:is_toggled = $false
 $global:entity_last_states = New-Object 'System.Collections.Generic.Dictionary[[String],[Object]]'
 
+# Get the current state of an entity (light bulb)	
 function Get-Entity-State {
 	param([string]$entity)
 
-	# Get the current state of the entity
+	# Initialize the $output variable. This is needed in case of an exception from Invoke-RestMethod, otherwise the
+	# previous value of $output would be used. (TODO: Look into Remove-Variable instead? But it is returned at the end
+	# of the function)
+	$output = $null 
 	$geturl = $geturlbase + $entity
+
 	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
 	try {
 		$output = Invoke-RestMethod $geturl -Method 'GET' -Headers $headers
@@ -56,11 +61,12 @@ function Get-Entity-State {
 			"$($_.Exception.Message)")
 	}
 	Remove-Variable geturl
-	Write-Entity-State -entity $entity -output $output
+	Log-Entity-State -entity $entity -output $output
 	return $output
 }
 
-function Write-Entity-State {
+# Log the state of the entity to the console
+function Log-Entity-State {
 	param([string]$entity, [Object]$output)
 
 	if ($null -eq $output -or $null -eq $output.attributes -or $null -eq $output.state) {
@@ -80,6 +86,7 @@ function Write-Entity-State {
 	[Console]::Out.Flush()
 }
 
+# Set the light color by RGB values
 function Set-Light-Color-By-RGB {
 	param([string]$entity, [int[]]$color)	
 
@@ -96,6 +103,7 @@ function Set-Light-Color-By-RGB {
 	}
 }
 
+# Set the light color by temperature in Kelvin
 function Set-Light-Color-By-Temp {
 	param([string]$entity, [int]$temperature)	
 
@@ -106,6 +114,7 @@ function Set-Light-Color-By-Temp {
 	Remove-Variable body
 }
 
+# Set the light brightness
 function Set-Light-Brightness {
 	param([string]$entity, [string]$brightness)
 
@@ -116,6 +125,7 @@ function Set-Light-Brightness {
 	Remove-Variable body
 }
 
+# Turn off the light
 function Turn-Off-Light {
 	param([string]$entity)
 
@@ -126,6 +136,7 @@ function Turn-Off-Light {
 	Remove-Variable body
 }
 
+# Check if the light is in the alert color
 function Is-Alert-Color {
 	param([Object]$output)	
 
@@ -147,25 +158,39 @@ function Is-Alert-Color {
 		$SettingsObject.alert_color_error_range))
 }
 
+# Set the last known state of the entity to the current state.
+# This usually happens before changing the light to the alert color.
+# If the light is already in the alert color, set the last state to the default color.
 function Set-Entity-Last-State {
 	param([string]$entity)
 
 	$global:entity_last_states[$entity] = Get-Entity-State($entity)
 	if (Is-Alert-Color($global:entity_last_states[$entity])) {
-		# The light is in the alert color. Set the last state to the default color.
-		Set-Entity-To-Default $entity
+		Set-Entity-Last-State-To-Default $entity
 	}
 }
 
-function Set-Entity-To-Default {
+# Set the entity to the default color and brightness
+function Set-Entity-Last-State-To-Default {
 	param([string]$entity)
 
 	"Setting last state for $entity to default temperture and brightness"
-	$global:entity_last_states[$entity].attributes.color_temp_kelvin = $SettingsObject.default_temperature
-	$global:entity_last_states[$entity].attributes.brightness = $SettingsObject.default_brightness
-	$global:entity_last_states[$entity].attributes.color_mode = 'color_temp'
+	if ($null -eq $global:entity_last_states[$entity] -or $null -eq $global:entity_last_states[$entity].attributes) {
+		$global:entity_last_states[$entity] = {
+			attributes: {
+				color_temp_kelvin: $SettingsObject.default_temperature,
+				brightness: $SettingsObject.default_brightness,
+				color_mode: 'color_temp'
+			}
+		}
+	} else {
+		$global:entity_last_states[$entity].attributes.color_temp_kelvin = $SettingsObject.default_temperature
+		$global:entity_last_states[$entity].attributes.brightness = $SettingsObject.default_brightness
+		$global:entity_last_states[$entity].attributes.color_mode = 'color_temp'
+	}
 }
 
+# Set the entity to the alert color and brightness
 function Toggle-On {
 	param([string]$entity)
 
@@ -175,25 +200,26 @@ function Toggle-On {
 	if (! $global:is_toggled) {
 		Set-Entity-Last-State $entity
 	}
-	# Always set the light to the alert color and alert brightness while in a call. Sometimes, someone changes the light
-	# color while in a call. 
+	# _Always_ set the light to the alert color and alert brightness while in a call. Sometimes, someone changes the 
+	# light color while in a call. It is just as expensive as retreiving the state, so just always set it. 
 	Set-Light-Color-By-RGB $entity $SettingsObject.alert_color
 	Set-Light-Brightness $entity $SettingsObject.alert_brightness
 }
 
+# Restore the last known state of the entity if it is in the alert color
 function Toggle-Off {
 	param([string]$entity)
 
 	"Toggling off $entity (checking if light is in alert color, and restoring last state if so)"
-	# Only change the light back if it is in the alert color. If someone changed the color while not in a call, leave it
-	# alone. Always check if the light is in the alert color, because it could be in that state when the app started, or 
-	# someone changed it to that color while not in a call, or we just got out of a call.
+	# Only change the light back if it is in the alert color. If someone changed the color while not in a call, leave 
+	# it alone. _Always_ check if the light is in the alert color, because it could be in that state when the app 
+	# started, or someone changed it to that color while not in a call, or, mostlikely, we just got out of a call.
 	if (Is-Alert-Color(Get-Entity-State($entity))) {
-		# Restore the last state of the entity. If the last state was off (null), turn the light off. If the last state 
+		# Restore the last state of the entity. If the last state state was off, turn the light off. If the last state 
 		# was the alert color, set it to the default color (but this is stored in the the entity_last_states variable, 
-		# so always use the last state unless turning off the light).
+		# anyways, so always use the last state variable, unless turning off the light).
 		if ($null -eq $entity_last_states[$entity] -or $null -eq $entity_last_states[$entity].state -or
-			$entity_last_states[$entity].state -eq 'off' ) {
+			$entity_last_states[$entity].state -eq 'off' -or $null -eq $entity_last_states[$entity].attributes) {
 			Turn-Off-Light $entity
 		} else {
 			Set-Light-Brightness $entity $entity_last_states[$entity].attributes.brightness
@@ -206,6 +232,7 @@ function Toggle-Off {
 	}
 }
 
+# Update the entities to the specified state (on or off)
 function Update-Entities {
 	param([string[]]$entities, [bool]$state)
 
@@ -222,6 +249,7 @@ function Update-Entities {
 	}
 }
 
+# Check if the specified process is running and update the entities accordingly
 function Check-Process {
 	param([string]$processname, [string[]]$entities, [int]$offcallcount = 0)
 
@@ -244,7 +272,7 @@ foreach ($entity in $SettingsObject.entities) {
 	"Initializing last state for $entity"
 	$output = Get-Entity-State($entity)
 	$global:entity_last_states.Add($entity, $output)
-	Set-Entity-To-Default $entity
+	Set-Entity-Last-State-To-Default $entity
 }
 
 # loop forever checking processes's states

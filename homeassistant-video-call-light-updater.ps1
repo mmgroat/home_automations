@@ -47,26 +47,13 @@ $global:entity_last_states = New-Object 'System.Collections.Generic.Dictionary[[
 function Get-Entity-State {
 	param([string]$entity)
 
-	# Initialize the $output variable. This is needed in case of an exception from Invoke-RestMethod, otherwise the
-	# previous value of $output would be used. (TODO: Look into Remove-Variable instead? But it is returned at the end
-	# of the function)
-	$output = $null 
-	$geturl = $geturlbase + $entity
-
-	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
-	try {
-		$output = Invoke-RestMethod $geturl -Method 'GET' -Headers $headers
-	} catch [System.Net.WebException] {
-		[Console]::WriteLine("An exception occurred connecting to Home Assistant for entity $($entity): " + 
-			"$($_.Exception.Message)")
-	}
-	Remove-Variable geturl
-	Log-Entity-State -entity $entity -output $output
+	$output = Invoke-Rest-API -url $($geturlbase + $entity) -method 'GET'
+	Write-Entity-State -entity $entity -output $output
 	return $output
 }
 
 # Log the state of the entity to the console
-function Log-Entity-State {
+function Write-Entity-State {
 	param([string]$entity, [Object]$output)
 
 	if ($null -eq $output -or $null -eq $output.attributes -or $null -eq $output.state) {
@@ -96,8 +83,7 @@ function Set-Light-Color-By-RGB {
 	} else {
 		$color_string = "[$($color[0]), $($color[1]), $($color[2])]"
 		$body = "{ `"entity_id`": `"$entity`", `"rgb_color`": $color_string }"
-		Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
-		Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
+		Invoke-Rest-API -url $onurl -method 'POST' -body $body
 		Remove-Variable body
 		Remove-Variable color_string
 	}
@@ -108,21 +94,27 @@ function Set-Light-Color-By-Temp {
 	param([string]$entity, [int]$temperature)	
 
 	"Setting color by temperature of $entity to $temperature"
-	$body = "{ `"entity_id`": `"$entity`", `"color_temp_kelvin`": $($temperature.ToString()) }"
-	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
-	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
-	Remove-Variable body
+	if ($null -eq $temperature) {
+		[Console]::WriteLine("Error: Color temperature must be specified. Given: $temperature")
+	} else {
+		$body = "{ `"entity_id`": `"$entity`", `"color_temp_kelvin`": $($temperature.ToString()) }"
+		Invoke-Rest-API -url $onurl -method 'POST' -body $body
+		Remove-Variable body
+	}
 }
 
 # Set the light brightness
 function Set-Light-Brightness {
-	param([string]$entity, [string]$brightness)
+	param([string]$entity, [int]$brightness)
 
 	"Setting brightness of $entity to $brightness"
-	$body = "{ `"entity_id`": `"$entity`", `"brightness`": $brightness }"
-	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
-	Invoke-RestMethod $onurl -Method 'POST' -Headers $headers -Body $body
-	Remove-Variable body
+	if ($null -eq $brightness) {
+		[Console]::WriteLine("Error: Brightness must be specified. Given: $brightness")
+	} else {
+		$body = "{ `"entity_id`": `"$entity`", `"brightness`": $brightness }"
+		Invoke-Rest-API -url $onurl -method 'POST' -body $body
+		Remove-Variable body
+	}
 }
 
 # Turn off the light
@@ -130,11 +122,29 @@ function Turn-Off-Light {
 	param([string]$entity)
 
 	"Turning off $entity"
-	$body = "{ `"entity_id`": `"$entity`" }"
-	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
-	Invoke-RestMethod $offurl -Method 'POST' -Headers $headers -Body $body
-	Remove-Variable body
+	Invoke-Rest-API -url $offurl -method 'POST' -body "{ `"entity_id`": `"$entity`" }"
 }
+
+function Invoke-Rest-API {
+	param([string]$url, [string]$method, [string]$body = $null)
+
+	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
+	# Initialize the $output variable. This is needed in case of an exception from Invoke-RestMethod, otherwise the
+	# previous value of $output would be used. (TODO: Look into Remove-Variable instead? But it is returned at the end
+	# of the function)
+	$output = $null 
+	try {
+		if ($method -eq 'POST') {
+			$output = Invoke-RestMethod $url -Method $method -Headers $headers -Body $body
+		} else {
+			$output = Invoke-RestMethod $url -Method $method -Headers $headers
+		}
+	} catch [System.Net.WebException] {
+		[Console]::WriteLine("An exception occurred connecting to Home Assistant for entity $($entity): " + 
+			"$($_.Exception.Message)")
+	}
+	return $output
+}	
 
 # Check if the light is in the alert color
 function Is-Alert-Color {
@@ -164,9 +174,9 @@ function Is-Alert-Color {
 function Set-Entity-Last-State {
 	param([string]$entity)
 
-	$global:entity_last_states[$entity] = Get-Entity-State($entity)
-	if (Is-Alert-Color($global:entity_last_states[$entity])) {
-		Set-Entity-Last-State-To-Default $entity
+	"Setting last state for $entity to current state"	
+	if (Is-Alert-Color($global:entity_last_states[$entity] = Get-Entity-State($entity))) {
+		Set-Entity-Last-State-To-Default -entity $entity
 	}
 }
 
@@ -198,12 +208,12 @@ function Toggle-On {
 	# to the alert color (on a second method invocation while in the same call, is_toggled will be true), it will 
 	# always store the last state before changing it to the alert color.
 	if (! $global:is_toggled) {
-		Set-Entity-Last-State $entity
+		Set-Entity-Last-State -entity $entity
 	}
 	# _Always_ set the light to the alert color and alert brightness while in a call. Sometimes, someone changes the 
 	# light color while in a call. It is just as expensive as retreiving the state, so just always set it. 
-	Set-Light-Color-By-RGB $entity $SettingsObject.alert_color
-	Set-Light-Brightness $entity $SettingsObject.alert_brightness
+	Set-Light-Color-By-RGB -entity $entity -color $SettingsObject.alert_color
+	Set-Light-Brightness -entity $entity -brightness $SettingsObject.alert_brightness
 }
 
 # Restore the last known state of the entity if it is in the alert color
@@ -214,19 +224,19 @@ function Toggle-Off {
 	# Only change the light back if it is in the alert color. If someone changed the color while not in a call, leave 
 	# it alone. _Always_ check if the light is in the alert color, because it could be in that state when the app 
 	# started, or someone changed it to that color while not in a call, or, mostlikely, we just got out of a call.
-	if (Is-Alert-Color(Get-Entity-State($entity))) {
+	if (Is-Alert-Color(Get-Entity-State -entity $entity )) {
 		# Restore the last state of the entity. If the last state state was off, turn the light off. If the last state 
 		# was the alert color, set it to the default color (but this is stored in the the entity_last_states variable, 
 		# anyways, so always use the last state variable, unless turning off the light).
 		if ($null -eq $entity_last_states[$entity] -or $null -eq $entity_last_states[$entity].state -or
 			$entity_last_states[$entity].state -eq 'off' -or $null -eq $entity_last_states[$entity].attributes) {
-			Turn-Off-Light $entity
+			Turn-Off-Light -entity $entity
 		} else {
-			Set-Light-Brightness $entity $entity_last_states[$entity].attributes.brightness
+			Set-Light-Brightness -entity $entity -brightness $entity_last_states[$entity].attributes.brightness
 			if ($entity_last_states[$entity].attributes.color_mode -eq 'rgb') {
-				Set-Light-Color-By-RGB $entity $entity_last_states[$entity].attributes.rgb_color
+				Set-Light-Color-By-RGB -entity $entity -color $entity_last_states[$entity].attributes.rgb_color
 			} else {
-				Set-Light-Color-By-Temp $entity $entity_last_states[$entity].attributes.color_temp_kelvin
+				Set-Light-Color-By-Temp -entity $entity -temp $entity_last_states[$entity].attributes.color_temp_kelvin
 			}
 		}
 	}
@@ -256,6 +266,7 @@ function Check-Process {
 	$process_var = Get-Process $processname -EA 0
 	if ($process_var) {
 		$processCount = (Get-NetUDPEndpoint -OwningProcess ($process_var).Id -EA 0 | Measure-Object).count
+		"Process $processname is running with $processCount Net UDP endpoints."
 		if ($processCount -gt $offcallcount) {
 			Update-Entities -entities $entities -state $True
 		} else {    
@@ -270,9 +281,8 @@ function Check-Process {
 # intialize the entity_last_states values to default values
 foreach ($entity in $SettingsObject.entities) {
 	"Initializing last state for $entity"
-	$output = Get-Entity-State($entity)
-	$global:entity_last_states.Add($entity, $output)
-	Set-Entity-Last-State-To-Default $entity
+	$global:entity_last_states.Add($entity, $(Get-Entity-State -entity $entity))
+	Set-Entity-Last-State-To-Default -entity $entity
 }
 
 # loop forever checking processes's states

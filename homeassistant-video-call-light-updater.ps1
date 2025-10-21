@@ -272,6 +272,7 @@ function Check-Process {
 		} else {    
 			Update-Entities -entities $entities -state $False
 		}
+		Remove-Variable processCount
 	} else {		
 		Update-Entities -entities $entities -state $False
 	}

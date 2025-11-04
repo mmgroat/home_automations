@@ -154,18 +154,23 @@ function Is-Alert-Color {
 		$null -ne $output.attributes -and $output.attributes.color_mode -eq 'rgb' -and
 		$null -ne $output.attributes.rgb_color -and 
 		# Check if the color is within the error range of the alert color. Sometimes it is off by a few values.
-		($output.attributes.rgb_color[0] -le $SettingsObject.alert_color[0] + 
-		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[0] -ge $SettingsObject.alert_color[0] - 
-		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[1] -le $SettingsObject.alert_color[1] + 
-		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[1] -ge $SettingsObject.alert_color[1] - 
-		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[2] -le $SettingsObject.alert_color[2] + 
-		$SettingsObject.alert_color_error_range) -and 
-		($output.attributes.rgb_color[2] -ge $SettingsObject.alert_color[2] - 
-		$SettingsObject.alert_color_error_range))
+		((($output.attributes.rgb_color[0] -le $SettingsObject.alert_color[0] + 
+				$SettingsObject.alert_color_error_range) -and 
+			($output.attributes.rgb_color[0] -ge $SettingsObject.alert_color[0] - 
+			$SettingsObject.alert_color_error_range) -and 
+			($output.attributes.rgb_color[1] -le $SettingsObject.alert_color[1] + 
+			$SettingsObject.alert_color_error_range) -and 
+			($output.attributes.rgb_color[1] -ge $SettingsObject.alert_color[1] - 
+			$SettingsObject.alert_color_error_range) -and 
+			($output.attributes.rgb_color[2] -le $SettingsObject.alert_color[2] + 
+			$SettingsObject.alert_color_error_range) -and 
+			($output.attributes.rgb_color[2] -ge $SettingsObject.alert_color[2] - 
+			$SettingsObject.alert_color_error_range)) -or 
+		# Sometimes the color stick to a different, but similar, alert color outside the error range, 
+		# so check for a mismatch color as well.
+		(($output.attributes.rgb_color[0] -eq $SettingsObject.alert_color_mismatch[0]) -and 
+		($output.attributes.rgb_color[1] -eq $SettingsObject.alert_color_mismatch[1]) -and 
+		($output.attributes.rgb_color[2] -eq $SettingsObject.alert_color_mismatch[2]))))
 }
 
 # Set the last known state of the entity to the current state.
@@ -293,5 +298,6 @@ while ($True) {
 		Check-Process -processname $process.processname -entities $SettingsObject.entities -offcallcount `
 			$process.nocallprocesscount
 	}	
+	Get-Process -Name powershell | Sort-Object -Descending WS | Select-Object -First 10 Name, @{Name = 'WorkingSetMB'; Expression = { $_.WorkingSet / 1MB } }
 	Start-Sleep -Seconds 30
 }

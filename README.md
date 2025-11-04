@@ -4,6 +4,7 @@
 
 - Change light bulb color and brightness when a server or application from work texts me an error
   - Involves cellphone software, Home Assistant, smart bulb(s)
+- Call indicator light: Change lights based on a Zoom call or other process
 - Alert the household, and record remotely, when someone enters the home
   - Involves sensors, sensor hub(s), Home Assistant, smart bulbs(s), Google Assistant
 - Reminders for chores, e.g, litter boxes, feeding the cats, or taking out the trash

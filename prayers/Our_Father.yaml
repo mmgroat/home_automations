@@ -1,0 +1,57 @@
+sequence:
+  - action: media_player.play_media
+    metadata: {}
+    data:
+      media:
+        media_content_id: >-
+          media-source://tts/tts.piper?message=Our+Father%2C+who+art+in+heaven%2C+hallowed+be+thy+name.+Thy+kingdom+come%2C+thy+will+be+done%2C+on+Earth%2C+as+it+is+in+heaven.&language=en_US&voice=en_US-bryce-medium
+        media_content_type: audio/mp3
+        metadata:
+          title: >-
+            Our Father, who art in heaven, hallowed be thy name. Thy kingdom
+            come, thy will be done, on Earth, as it is in heaven.
+          thumbnail: https://brands.home-assistant.io/_/wyoming/logo.png
+          media_class: app
+          children_media_class: null
+          navigateIds:
+            - {}
+            - media_content_type: app
+              media_content_id: media-source://tts
+            - media_content_type: audio/mp3
+              media_content_id: >-
+                media-source://tts/tts.piper?message=Our+Father%2C+who+art+in+heaven%2C+hallowed+be+thy+name.+Thy+kingdom+come%2C+thy+will+be+done%2C+on+Earth%2C+as+it+is+in+heaven.&language=en_US&voice=en_US-bryce-medium
+          browse_entity_id: media_player.nestaudio3219
+    target:
+      entity_id: media_player.nestaudio3219
+  - delay:
+      hours: 0
+      minutes: 0
+      seconds: 8
+      milliseconds: 0
+  - action: media_player.play_media
+    metadata: {}
+    data:
+      media:
+        media_content_id: >-
+          media-source://tts/tts.piper?message=Give+us+this+day%2C+our+daily+bread%2C+and+forgive+us+our+trespasses%2C+as+we+forgive+those+who+trespass+against+us%2C+and+lead+us+not+into+temptation%2C+but+deliver+us+from+evil%2C+Amen.&language=en_US&voice=en_US-hfc_female-medium
+        media_content_type: audio/mp3
+        metadata:
+          title: >-
+            Give us this day, our daily bread, and forgive us our trespasses, as
+            we forgive those who trespass against us, and lead us not into
+            temptation, but deliver us from evil, Amen.
+          thumbnail: https://brands.home-assistant.io/_/wyoming/logo.png
+          media_class: app
+          children_media_class: null
+          navigateIds:
+            - {}
+            - media_content_type: app
+              media_content_id: media-source://tts
+            - media_content_type: audio/mp3
+              media_content_id: >-
+                media-source://tts/tts.piper?message=Give+us+this+day%2C+our+daily+bread%2C+and+forgive+us+our+trespasses%2C+as+we+forgive+those+who+trespass+against+us%2C+and+lead+us+not+into+temptation%2C+but+deliver+us+from+evil%2C+Amen.&language=en_US&voice=en_US-hfc_female-medium
+          browse_entity_id: media_player.nestaudio3219
+    target:
+      entity_id: media_player.nestaudio3219
+alias: Our Father
+description: ""

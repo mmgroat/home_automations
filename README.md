@@ -2,30 +2,20 @@
 
 ## Key benefits and uses of current home automations others might be interested in. Let me know if you are interested in any of the following, or would like me to share more on how to do them.
 
-- Change light bulb color and brightness when a server or application from work texts me an error
-  - Involves cellphone software, Home Assistant, smart bulb(s)
-- Call indicator light: Change lights based on a Zoom call or other process
-- Alert the household, and record remotely, when someone enters the home
-  - Involves sensors, sensor hub(s), Home Assistant, smart bulbs(s), Google Assistant
+- Change lights when a server or application from work texts an error
+- Change lights when taking a Zoom call or other designated process runs
+- Change lights and announce on smart speakers when someone enters the home
 - Reminders for chores, e.g, litter boxes, feeding the cats, or taking out the trash
-  - Involves Google Home, Google Assistant
-- Morning alarms and light controls
-  - Smart bulb(s), Google Assistant, and Google Home
-- Remotely or locally, pull up or access (either accessing software or using voice commands), a map, on TVs or phones, where household members are
-  - Involves cellphone software, Home Assistant, Google Chromecast, Google Assistant
-  - Currently, to avoid subscriptions such as Homeassistant Cloud, I'm looking into using a Raspberry Pi with a microphone and speaker
-- Alerts when someone arrives or leaves work, or is coming home
-  - Cellphone software, Home Assistant, Google Assistant
-- Pull up a calendar of today's appointments on a TV on a schedule (usually before waking)
-  - Involves Google Chromecast, DAKboard, Home Assistant
-- Communicate remotely with household members with Google Assistant and a web browser
-  - Involves Home Assistant, Google Assistant, a web browser
-- Random I love you reminders
-  - Involves Google Assistant, Chromecast, Home Assistant, videos to play on TVs
+- Morning alarms and wake up lights
+- Remotely or locally pull up a map (on TVs, phones, or tablets) where household members are (for example, letting the household know you are on your way home from work)
+- Alerts on smart speakers when someone arrives or leaves certain zones
+- Pull up by a voice command, or show on a schedule (usually before waking), a calendar of the day's appointments on a TV
+- Communicate remotely from a web browser entering text with household members through a smart speaker
+- Random I love you reminders or videos on smart speakers or TVs
 
 ## Future Work
 
-- Use a voice command, e.g. 'I just fed the cats', 'I just watered the cats', or 'I just cleaned the cat litter boxes' that logs on a spreadsheet who (voice recognition) did what and when, and emails other household members the task was done
-- A motion sensor that triggers only once a day when first entering the office, greeting you and giving the day's appointments on a smart speaker. Later, a way to figure out who entered the room (face recognition)
-- A voice command to pull up a calendar on a TV (I can't seem to get Homeassistant Cloud to stay working, so I'm looking for how to do this without subscriptions). Later, use voice recognition to pull up that person's calendar
-- Slowly migrate from Google Home with Google Assistants to Home Assistant with Raspberry Pis connected to microphones and speakers (to avoid subscriptions and first adoptor bugs that I'm currenlty experencing with Home Assistant Cloud and Google Home)
+- Use a voice command, e.g. 'I just fed the cats', or 'I exercised for 30 minutes' that logs on a spreadsheet who (by voice recognition) did what and when, and optionally emails other household members the task or chore was completed
+- A motion or presence sensor that triggers only once a day when first entering an office, greeting you and giving the day's appointments on a smart speaker - Later, a way to figure out who entered the room (face recognition, or cell phone or smart watch blue tooth presence detection)
+- Slowly migrate away from Google Home and Google Assistants to Home Assistant with Voice Assistants running on Raspberry Pis connected to microphones and speakers (to avoid subscriptions and first adoptor bugs that I'm currenlty experencing trying to get Home Assistant Cloud to integrate with Google Home, and to run compeletly locally, independently from the Internet)
+- Implement a local large language model (Ollama) for a better Home Assistant Voice Assistant that also does not require an Internet connection.

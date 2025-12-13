@@ -24,6 +24,9 @@
 # Modifications:
 # 2025-10-15 MMG Added temperature color mode ability
 # 2025-11-20 MMG Added hs color mode ability
+# 2025-12-12 MMG When turning off a light because the last state was off, change briefly the color and brightness first 
+#                to the defaults. This prevents later, when turning on the light, turning it to the alert color and 
+#                brightness, giving the false impression someone is on a call
 ########################################################################################################################
 
 # Load settings from JSON file
@@ -58,22 +61,22 @@ function Write-Entity-State {
 	param([string]$entity, [Object]$output)
 
 	if ($null -eq $output -or $null -eq $output.attributes -or $null -eq $output.state) {
-		[Console]::WriteLine("Could not retrieve state for entity $($entity)")
+		[Console]::WriteLine("Could not retrieve state for $($entity)")
 	} elseif ($output.state -eq 'off') {
 		[Console]::WriteLine("Got state for $($entity): Light bulb is off")
 	} else {
 		if ($output.attributes.color_mode -eq 'rgb') {
-			[Console]::WriteLine("Got state for entity $($entity): color mode: $($output.attributes.color_mode), " +
+			[Console]::WriteLine("Got state for $($entity): color mode: $($output.attributes.color_mode), " +
 				"rgb_color: $($output.attributes.rgb_color), brightness: $($output.attributes.brightness)")
 		} elseif ($output.attributes.color_mode -eq 'hs') {
-			[Console]::WriteLine("Got state for entity $($entity): color mode: $($output.attributes.color_mode), " +
+			[Console]::WriteLine("Got state for $($entity): color mode: $($output.attributes.color_mode), " +
 				"hs_color: $($output.attributes.hs_color), brightness: $($output.attributes.brightness)")
 		} elseif ($output.attributes.color_mode -eq 'color_temp') {
-			[Console]::WriteLine("Got state for entity $($entity): color mode: $($output.attributes.color_mode), " +
+			[Console]::WriteLine("Got state for $($entity): color mode: $($output.attributes.color_mode), " +
 				"color_temp_kelvin: $($output.attributes.color_temp_kelvin), brightness: " +
 				"$($output.attributes.brightness)")
 		} else {
-			[Console]::WriteLine("Error: Unknown color mode $($output.attributes.color_mode) for entity $entity")
+			[Console]::WriteLine("Error: Unknown color mode $($output.attributes.color_mode) for $entity")
 		}
 	}
 	[Console]::Out.Flush()
@@ -83,9 +86,9 @@ function Write-Entity-State {
 function Set-Light-Color-By-HS {
 	param([string]$entity, [int[]]$color)	
 
-	[Console]::WriteLine("Setting color by HS of entity $entity to $color")
+	[Console]::WriteLine("Setting color by HS of $entity to $color")
 	if ($color.Length -ne 2) {
-		[Console]::WriteLine("Error: Color array must have exactly 2 elements (H, S). Given: $color")	
+		[Console]::WriteLine("Error: Color array must have exactly 2 elements (H, S). Given: $color")
 	} else {
 		$color_string = "[$($color[0]), $($color[1])]"
 		$body = "{ `"entity_id`": `"$entity`", `"hs_color`": $color_string }"
@@ -99,9 +102,9 @@ function Set-Light-Color-By-HS {
 function Set-Light-Color-By-RGB {
 	param([string]$entity, [int[]]$color)	
 
-	[Console]::WriteLine("Setting color by RGB of entity $entity to $color")
+	[Console]::WriteLine("Setting color by RGB of $entity to $color")
 	if ($color.Length -ne 3) {
-		[Console]::WriteLine("Error: Color array must have exactly 3 elements (R, G, B). Given: $color")	
+		[Console]::WriteLine("Error: Color array must have exactly 3 elements (R, G, B). Given: $color")
 	} else {
 		$color_string = "[$($color[0]), $($color[1]), $($color[2])]"
 		$body = "{ `"entity_id`": `"$entity`", `"rgb_color`": $color_string }"
@@ -113,9 +116,9 @@ function Set-Light-Color-By-RGB {
 
 # Set the light color by temperature in Kelvin
 function Set-Light-Color-By-Temp {
-	param([string]$entity, [int]$temperature)	
+	param([string]$entity, [int]$temperature)
 
-	[Console]::WriteLine("Setting color by temperature of entity $entity to $temperature")
+	[Console]::WriteLine("Setting color by temperature of $entity to $temperature")
 	if ($null -eq $temperature) {
 		[Console]::WriteLine("Error: Color temperature must be specified. Given: $temperature")
 	} else {
@@ -129,7 +132,7 @@ function Set-Light-Color-By-Temp {
 function Set-Light-Brightness {
 	param([string]$entity, [int]$brightness)
 
-	[Console]::WriteLine("Setting brightness of entity $entity to $brightness")
+	[Console]::WriteLine("Setting brightness of $entity to $brightness")
 	if ($null -eq $brightness) {
 		[Console]::WriteLine("Error: Brightness must be specified. Given: $brightness")
 	} else {
@@ -162,7 +165,7 @@ function Invoke-Rest-API {
 			$output = Invoke-RestMethod $url -Method $method -Headers $headers
 		}
 	} catch [System.Net.WebException] {
-		[Console]::WriteLine("Error: An exception occurred connecting to Home Assistant for entity $($entity): " + 
+		[Console]::WriteLine("Error: An exception occurred connecting to Home Assistant for $($entity): " +
 			"$($_.Exception.Message)")
 	}
 	return $output
@@ -172,36 +175,53 @@ function Invoke-Rest-API {
 function Is-Alert-Color {
 	param([Object]$output)	
 
-	return ($null -ne $output -and $null -ne $output.state -and $output.state -eq 'on' -and 
+	return ($null -ne $output -and 
+		$null -ne $output.state -and 
+		$output.state -eq 'on' -and 
 		$null -ne $output.attributes -and 
-		($output.attributes.color_mode -eq 'rgb' -and $null -ne $output.attributes.rgb_color -and 
+		((Is-Alert-Color-RGB -output $output.attributes) -or 
+			(Is-Alert-Color-HS -output $output.attributes)))
+}
+
+# Check if the light is in the alert color by RGB
+function Is-Alert-Color-RGB {
+	param([Object]$output)
+	
+	return ($output.color_mode -eq 'rgb' -and 
+			$null -ne $output.rgb_color -and 
 			# Check if the color is within the error range of the alert color. Sometimes it is off by a few values.
-			((($output.attributes.rgb_color[0] -le $SettingsObject.alert_color[0] + 
+			((($output.rgb_color[0] -le $SettingsObject.alert_color[0] + 
 					$SettingsObject.alert_color_error_range) -and 
-				($output.attributes.rgb_color[0] -ge $SettingsObject.alert_color[0] - 
+				($output.rgb_color[0] -ge $SettingsObject.alert_color[0] - 
 					$SettingsObject.alert_color_error_range) -and 
-				($output.attributes.rgb_color[1] -le $SettingsObject.alert_color[1] + 
+				($output.rgb_color[1] -le $SettingsObject.alert_color[1] + 
 					$SettingsObject.alert_color_error_range) -and 
-				($output.attributes.rgb_color[1] -ge $SettingsObject.alert_color[1] - 
+				($output.rgb_color[1] -ge $SettingsObject.alert_color[1] - 
 					$SettingsObject.alert_color_error_range) -and 
-				($output.attributes.rgb_color[2] -le $SettingsObject.alert_color[2] + 
+				($output.rgb_color[2] -le $SettingsObject.alert_color[2] + 
 					$SettingsObject.alert_color_error_range) -and 
-				($output.attributes.rgb_color[2] -ge $SettingsObject.alert_color[2] - 
+				($output.rgb_color[2] -ge $SettingsObject.alert_color[2] - 
 					$SettingsObject.alert_color_error_range)) -or 
-				# Sometimes the color stick to a different, but similar, alert color outside the error range, 
+				# Sometimes the color sticks to a different, but similar, alert color outside the error range,
 	     		# so check for a mismatch color as well.
-		    	(($output.attributes.rgb_color[0] -eq $SettingsObject.alert_color_mismatch[0]) -and 
-				($output.attributes.rgb_color[1] -eq $SettingsObject.alert_color_mismatch[1]) -and 
-				($output.attributes.rgb_color[2] -eq $SettingsObject.alert_color_mismatch[2])))) -or
-		($output.attributes.color_mode -eq 'hs' -and $null -ne $output.attributes.hs_color -and
-			(($output.attributes.hs_color[0] -le $SettingsObject.alert_color_hs[0] + 
+		    	(($output.rgb_color[0] -eq $SettingsObject.alert_color_mismatch[0]) -and 
+					($output.rgb_color[1] -eq $SettingsObject.alert_color_mismatch[1]) -and 
+					($output.rgb_color[2] -eq $SettingsObject.alert_color_mismatch[2]))))
+}
+
+# Check if the light is in the alert color by hs
+function Is-Alert-Color-HS {
+	param([Object]$output)
+
+	return ($output.color_mode -eq 'hs' -and $null -ne $output.hs_color -and
+			(($output.hs_color[0] -le $SettingsObject.alert_color_hs[0] + 
 					$SettingsObject.alert_color_error_range) -and 
-				($output.attributes.hs_color[0] -ge $SettingsObject.alert_color_hs[0] - 
+				($output.hs_color[0] -ge $SettingsObject.alert_color_hs[0] - 
 					$SettingsObject.alert_color_hs_error_range) -and 
-				($output.attributes.hs_color[1] -le $SettingsObject.alert_color_hs[1] + 
+				($output.hs_color[1] -le $SettingsObject.alert_color_hs[1] + 
 					$SettingsObject.alert_color_hs_error_range) -and 
-				($output.attributes.hs_color[1] -ge $SettingsObject.alert_color_hs[1] - 
-					$SettingsObject.alert_color_hs_error_range)))) 
+				($output.hs_color[1] -ge $SettingsObject.alert_color_hs[1] - 
+					$SettingsObject.alert_color_hs_error_range)))
 }
 
 # Set the last known state of the entity to the current state.
@@ -210,7 +230,7 @@ function Is-Alert-Color {
 function Set-Entity-Last-State {
 	param([string]$entity)
 
-	[Console]::WriteLine("Setting the last state variable for entity $entity")	
+	[Console]::WriteLine("Setting the last state variable for $entity")	
 	if (Is-Alert-Color($global:entity_last_states[$entity] = Get-Entity-State($entity))) {
 		Set-Entity-Last-State-To-Default -entity $entity
 	}
@@ -220,7 +240,7 @@ function Set-Entity-Last-State {
 function Set-Entity-Last-State-To-Default {
 	param([string]$entity)
 
-	[Console]::WriteLine("Setting the last state variable for entity $entity to the default temperature and brightness")
+	[Console]::WriteLine("Setting the last state variable for $entity to the default temperature and brightness")
 	if ($null -eq $global:entity_last_states[$entity] -or $null -eq $global:entity_last_states[$entity].attributes) {
 		$global:entity_last_states[$entity] = {
 			attributes: {
@@ -246,7 +266,7 @@ function Toggle-On {
 	if (! $global:is_toggled) {
 		Set-Entity-Last-State -entity $entity
 	}
-	# _Always_ set the light to the alert color and alert brightness while in a call. Sometimes, someone changes the 
+	# _Always_ set the light to the alert color and alert brightness while in a call. Sometimes, someone changes the
 	# light color while in a call. It is just as expensive as retreiving the state, so just always set it. 
 	Set-Light-Color-By-RGB -entity $entity -color $SettingsObject.alert_color
 	Set-Light-Brightness -entity $entity -brightness $SettingsObject.alert_brightness
@@ -256,16 +276,24 @@ function Toggle-On {
 function Toggle-Off {
 	param([string]$entity)
 
-	[Console]::WriteLine("Toggling off entity $entity (checking if light is in alert color, and restoring last state if so)")
-	# Only change the light back if it is in the alert color. If someone changed the color while not in a call, leave 
-	# it alone. _Always_ check if the light is in the alert color, because it could be in that state when the app 
-	# started, or someone changed it to that color while not in a call, or, mostlikely, we just got out of a call.
+	[Console]::WriteLine("Toggling off $entity (checking if light is in alert color, and restoring last state if so)")
+	# Only change the light back if it is in the alert color. If someone changed the color while not in a call, leave
+	# it alone. _Always_ check if the light is in the alert color, because it could be in that state when the app
+	# started, or someone changed it to that color while not in a call, or, most likely, we just got out of a call.
 	if (Is-Alert-Color(Get-Entity-State -entity $entity )) {
-		# Restore the last state of the entity. If the last state state was off, turn the light off. If the last state 
-		# was the alert color, set it to the default color (but this is stored in the the entity_last_states variable, 
+		# Restore the last state of the entity. If the last state state was off, turn the light off. If the last state
+		# was the alert color, set it to the default color (but this is stored in the the entity_last_states variable,
 		# anyways, so always use the last state variable, unless turning off the light).
 		if ($null -eq $entity_last_states[$entity] -or $null -eq $entity_last_states[$entity].state -or
 			$entity_last_states[$entity].state -eq 'off' -or $null -eq $entity_last_states[$entity].attributes) {
+			# Once in a while, the last state will be off, and then the light is changed to the alert color because of
+			# a call. In these cases, when the light is later turned back on after it has turned off (even if this
+			# script has stopped running), the light turns on to the alert color. To resolve this, we briefly turn the
+			# light to the default color and brightness before turning it off. This way, if the light is turned on
+			# later, even after the script has stopped running, the light does not enter the alert color, giving the
+			# wrong impression someone is on a call.
+			Set-Light-Brightness -entity $entity -brightness $SettingsObject.default_brightness
+			Set-Light-Color-By-Temp -entity $entity -temp $SettingsObject.default_temperature
 			Turn-Off-Light -entity $entity
 		} else {
 			Set-Light-Brightness -entity $entity -brightness $entity_last_states[$entity].attributes.brightness
@@ -277,7 +305,7 @@ function Toggle-Off {
 				Set-Light-Color-By-Temp -entity $entity -temp $entity_last_states[$entity].attributes.color_temp_kelvin
 			} else {
 				[Console]::WriteLine("Error: Unknown color mode " + 
-					"$($entity_last_states[$entity].attributes.color_mode) for entity $entity")
+					"$($entity_last_states[$entity].attributes.color_mode) for $entity")
 			}
 		}
 	}
@@ -322,7 +350,7 @@ function Check-Process {
 
 # intialize the entity_last_states values to default values
 foreach ($entity in $SettingsObject.entities) {
-	"Initializing last state for entity $entity"
+	"Initializing last state for $entity"
 	$global:entity_last_states.Add($entity, $(Get-Entity-State -entity $entity))
 	Set-Entity-Last-State-To-Default -entity $entity
 }
@@ -334,6 +362,7 @@ while ($True) {
 		Check-Process -processname $process.processname -entities $SettingsObject.entities -offcallcount `
 			$process.nocallprocesscount
 	}	
-	Get-Process -Name powershell | Sort-Object -Descending WS | Select-Object -First 10 Name, @{Name = 'WorkingSetMB'; Expression = { $_.WorkingSet / 1MB } }
+	Get-Process -Name powershell | Sort-Object -Descending WS | ` 
+		Select-Object -First 10 Name, @{Name = 'WorkingSetMB'; Expression = { $_.WorkingSet / 1MB } }
 	Start-Sleep -Seconds 30
 }

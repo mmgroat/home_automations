@@ -154,8 +154,8 @@ function Invoke-Rest-API {
 	param([string]$url, [string]$method, [string]$body = $null)
 
 	Start-Sleep -Milliseconds $SettingsObject.rest_API_delay_ms
-	# Initialize the $output variable. This is needed in case of an exception from Invoke-RestMethod, otherwise the
-	# previous value of $output would be used. (TODO: Look into Remove-Variable instead? But it is returned at the end
+	# Initialize the $output variable. This is needed in case of an exception from Invoke-RestMethod because then the
+	# previous value of $output would be used. (TODO: Look into Remove-Variable instead, but it is returned at the end
 	# of the function)
 	$output = $null 
 	try {

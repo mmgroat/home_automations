@@ -33,12 +33,12 @@
 $settings_file = 'C:\Users\MikeGroat\OneDrive - Forge Global, Inc\Desktop\Personel\Mike_Groat\bin\settings.json'
 $SettingsObject = Get-Content $settings_file | ConvertFrom-Json
 
-# set up the URLs for the REST API calls
+# Set up the URLs for the REST API calls
 $onurl = $SettingsObject.ha_basepath + $SettingsObject.light_on_api
 $offurl = $SettingsObject.ha_basepath + $SettingsObject.light_off_api
 $geturlbase = $SettingsObject.ha_basepath + 'states/'
 
-# set up the headers for the REST API calls
+# Set up the headers for the REST API calls
 $headers = New-Object 'System.Collections.Generic.Dictionary[[String],[String]]'
 $headers.Add('Authorization', 'Bearer ' + $SettingsObject.ha_token)
 $headers.Add('Content-Type', 'application/json')
@@ -335,7 +335,7 @@ function Check-Process {
 	$process_var = Get-Process $processname -EA 0
 	if ($process_var) {
 		$processCount = (Get-NetUDPEndpoint -OwningProcess ($process_var).Id -EA 0 | Measure-Object).count
-		"Process $processname is running with $processCount Net UDP endpoints."
+		[Console]::WriteLine("Process $processname is running with $processCount Net UDP endpoints.")
 		if ($processCount -gt $offcallcount) {
 			Update-Entities -entities $entities -state $True
 		} else {    
@@ -348,21 +348,25 @@ function Check-Process {
 	Remove-Variable process_var
 }
 
-# intialize the entity_last_states values to default values
+# Intialize the entity_last_states values to default values
 foreach ($entity in $SettingsObject.entities) {
-	"Initializing last state for $entity"
+	[Console]::WriteLine("Initializing last state for $entity")
 	$global:entity_last_states.Add($entity, $(Get-Entity-State -entity $entity))
 	Set-Entity-Last-State-To-Default -entity $entity
 }
 
-# loop forever checking processes's states
+# Loop forever checking processes's states
 while ($True) {
-	'Checking processes at ' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+	[Console]::WriteLine('Checking processes at ' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))
 	foreach ($process in $SettingsObject.processes) {
 		Check-Process -processname $process.processname -entities $SettingsObject.entities -offcallcount `
 			$process.nocallprocesscount
-	}	
+	}
+
+	# Output memory usage to find any memory leaks
 	Get-Process -Name powershell | Sort-Object -Descending WS | ` 
 		Select-Object -First 10 Name, @{Name = 'WorkingSetMB'; Expression = { $_.WorkingSet / 1MB } }
+
+	# Check every 30 seconds
 	Start-Sleep -Seconds 30
 }

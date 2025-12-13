@@ -11,6 +11,7 @@
   ],
   "entities": ["light.mike_s_light", "light.living_room_light_four", <your_lights>],
   "alert_color": [255, 25, 255],
+  "alert_color_hs": [299.055, 90.157],
   "alert_color_mismatch": [224, 0, 192],
   "alert_brightness": 255,
   "default_temperature": 4000,

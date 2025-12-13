@@ -30,7 +30,7 @@
 ########################################################################################################################
 
 # Load settings from JSON file
-$settings_file = 'C:\Users\MikeGroat\OneDrive - Forge Global, Inc\Desktop\Personel\Mike_Groat\bin\settings.json'
+$settings_file = 'settings.json'
 $SettingsObject = Get-Content $settings_file | ConvertFrom-Json
 
 # Set up the URLs for the REST API calls
@@ -187,8 +187,7 @@ function Is-Alert-Color {
 function Is-Alert-Color-RGB {
 	param([Object]$output)
 	
-	return ($output.color_mode -eq 'rgb' -and 
-			$null -ne $output.rgb_color -and 
+	return ($output.color_mode -eq 'rgb' -and $null -ne $output.rgb_color -and 
 			# Check if the color is within the error range of the alert color. Sometimes it is off by a few values.
 			((($output.rgb_color[0] -le $SettingsObject.alert_color[0] + 
 					$SettingsObject.alert_color_error_range) -and 

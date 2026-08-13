@@ -240,18 +240,12 @@ function Set-Entity-Last-State-To-Default {
 	param([string]$entity)
 
 	[Console]::WriteLine("Setting the last state variable for $entity to the default temperature and brightness")
-	if ($null -eq $global:entity_last_states[$entity] -or $null -eq $global:entity_last_states[$entity].attributes) {
-		$global:entity_last_states[$entity] = {
-			attributes: {
-				color_temp_kelvin: $SettingsObject.default_temperature,
-				brightness: $SettingsObject.default_brightness,
-				color_mode: 'color_temp'
-			}
+	$global:entity_last_states[$entity] = {
+		attributes: {
+			color_temp_kelvin: $SettingsObject.default_temperature,
+			brightness: $SettingsObject.default_brightness,
+			color_mode: 'color_temp'
 		}
-	} else {
-		$global:entity_last_states[$entity].attributes.color_temp_kelvin = $SettingsObject.default_temperature
-		$global:entity_last_states[$entity].attributes.brightness = $SettingsObject.default_brightness
-		$global:entity_last_states[$entity].attributes.color_mode = 'color_temp'
 	}
 }
 
@@ -335,7 +329,7 @@ function Check-Process {
 	if ($process_var) {
 		$processCount = (Get-NetUDPEndpoint -OwningProcess ($process_var).Id -EA 0 | Measure-Object).count
 		[Console]::WriteLine("Process $processname is running with $processCount Net UDP endpoints.")
-		if ($processCount -gt $offcallcount) {
+		if ($processCount -ge $offcallcount) {
 			Update-Entities -entities $entities -state $True
 		} else {    
 			Update-Entities -entities $entities -state $False
